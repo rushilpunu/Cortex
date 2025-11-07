@@ -1,0 +1,44 @@
+{
+  "quotes": [
+    {
+      "text": "The quieter you become, the more you are able to hear.",
+      "author": "Rumi",
+      "tags": ["calm", "study", "sleep"]
+    },
+    {
+      "text": "Time to open a window? Fresh air boosts productivity.",
+      "author": "Cortex",
+      "tags": ["study", "high_co2_proxy"]
+    },
+    {
+      "text": "Stay sharp. Stay focused.",
+      "author": "Cortex",
+      "tags": ["study"]
+    },
+    {
+      "text": "A little warmth can make a big difference.",
+      "author": "Cortex",
+      "tags": ["chill", "cold_temp"]
+    },
+    {
+      "text": "Looks like a good time to relax and recharge.",
+      "author": "Cortex",
+      "tags": ["chill", "social"]
+    },
+    {
+      "text": "The night is for rest and recovery.",
+      "author": "Cortex",
+      "tags": ["sleep", "night"]
+    },
+    {
+      "text": "Good morning. Let's make today productive.",
+      "author": "Cortex",
+      "tags": ["morning"]
+    },
+    {
+      "text": "Anomaly detected. Check sensor readings for details.",
+      "author": "Cortex",
+      "tags": ["anomaly"]
+    }
+  ]
+}

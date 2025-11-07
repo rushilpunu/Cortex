@@ -1,0 +1,40 @@
+{
+  "animation": {
+    "name": "CORTEX_BOOT_V1",
+    "duration_ms": 3000,
+    "frames": [
+      {
+        "time": 0,
+        "type": "clear",
+        "color": [0, 0, 0]
+      },
+      {
+        "time": 200,
+        "type": "draw_text",
+        "text": "CORTEX",
+        "font": "system_large",
+        "pos": ["center", 180],
+        "color": [255, 255, 255],
+        "effect": "fade_in",
+        "duration": 800
+      },
+      {
+        "time": 1200,
+        "type": "draw_text",
+        "text": "Initializing Sensors...",
+        "font": "system_small",
+        "pos": ["center", 240],
+        "color": [200, 200, 200],
+        "effect": "fade_in",
+        "duration": 800
+      },
+      {
+        "time": 2800,
+        "type": "clear",
+        "color": [0, 0, 0],
+        "effect": "fade_out",
+        "duration": 200
+      }
+    ]
+  }
+}

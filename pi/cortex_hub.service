@@ -1,0 +1,16 @@
+[Unit]
+Description=CORTEX Hub Service (BLE, DB, Analytics)
+After=network.target bluetooth.service
+
+[Service]
+Type=simple
+User=pi
+# Change this to the actual path where you cloned the project
+WorkingDirectory=/home/pi/Cortex/pi
+# This command assumes you have a virtualenv in the project root
+ExecStart=/home/pi/Cortex/venv/bin/python cortex_hub.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

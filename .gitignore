@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+pip-wheel-metadata/
+.eggs/
+*.egg-info/
+dist/
+build/
+
+# Raspberry Pi
+.cortex/
+*.db
+*.csv
+
+# IDEs
+.vscode/
+.idea/
+
+# macOS
+.DS_Store

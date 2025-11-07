@@ -1,0 +1,26 @@
+# Core
+bleak
+fastapi
+uvicorn
+websockets
+pyserial
+zeroconf
+
+# Analytics & ML
+numpy
+scipy
+scikit-learn
+onnxruntime
+
+# Database
+aiosqlite
+
+# Renderer (Display)
+# Using pygame for its maturity on Raspberry Pi for this kind of display
+pygame
+
+# Prometheus metrics (optional)
+prometheus-client
+
+# For .env file loading
+python-dotenv

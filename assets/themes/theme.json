@@ -1,0 +1,49 @@
+{
+  "default": {
+    "name": "Default",
+    "background": [10, 10, 20],
+    "foreground": [220, 220, 240],
+    "accent": [0, 150, 255],
+    "good": [0, 200, 100],
+    "warning": [255, 180, 0],
+    "error": [220, 50, 50]
+  },
+  "palettes": {
+    "Study": {
+      "name": "Study / Focus",
+      "orb_colors": [[0, 80, 200], [50, 150, 255]],
+      "ambient_particles": {
+        "color": [0, 100, 200],
+        "velocity_factor": 0.5
+      }
+    },
+    "Chill": {
+      "name": "Chill / Relax",
+      "orb_colors": [[20, 150, 100], [100, 200, 150]],
+      "ambient_particles": {
+        "color": [50, 150, 120],
+        "velocity_factor": 0.2
+      }
+    },
+    "Sleep": {
+      "name": "Sleep / Night",
+      "orb_colors": [[30, 30, 60], [50, 50, 90]],
+      "ambient_particles": {
+        "color": [40, 40, 70],
+        "velocity_factor": 0.05
+      }
+    },
+    "Social": {
+      "name": "Social / Active",
+      "orb_colors": [[255, 100, 0], [255, 180, 50]],
+      "ambient_particles": {
+        "color": [255, 150, 0],
+        "velocity_factor": 1.2
+      }
+    }
+  },
+  "e_ink_sleep": {
+    "background": [10, 10, 10],
+    "foreground": [200, 200, 200]
+  }
+}

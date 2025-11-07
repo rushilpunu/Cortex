@@ -1,0 +1,19 @@
+[Unit]
+Description=CORTEX Renderer Service (TFT UI)
+After=cortex_hub.service
+BindsTo=cortex_hub.service
+
+[Service]
+Type=simple
+User=pi
+# This is required for the UI to access the display
+Environment=DISPLAY=:0
+# Change this to the actual path where you cloned the project
+WorkingDirectory=/home/pi/Cortex/pi
+# This command assumes you have a virtualenv in the project root
+ExecStart=/home/pi/Cortex/venv/bin/python cortex_renderer.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
