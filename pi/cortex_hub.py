@@ -20,6 +20,11 @@ from dotenv import load_dotenv
 
 import json
 
+# Import analytics modules
+import algorithms
+import predictor
+import personality
+
 # --- Globals ---
 # In-memory cache for the latest values from each node
 last_values_cache: Dict[str, Dict[str, Any]] = {}
@@ -27,6 +32,10 @@ last_values_cache: Dict[str, Dict[str, Any]] = {}
 ipc_queue = asyncio.Queue()
 # List of connected IPC clients (for the publisher)
 ipc_clients: List[asyncio.StreamWriter] = []
+
+# Analytics state
+cortex_personality: Optional[personality.Personality] = None
+calibration_data: Dict[int, Dict[str, float]] = {}
 
 
 # --- Configuration Loading ---
@@ -93,12 +102,14 @@ def parse_packet(data: bytearray) -> Optional[Dict[str, Any]]:
 
 async def db_writer(queue: asyncio.Queue):
     """A coroutine that reads from a queue and writes to the database."""
+    global last_values_cache
     async with aiosqlite.connect(DB_PATH) as db:
         while True:
             packet, mac = await queue.get()
             ts_utc = datetime.utcnow().isoformat() + "Z"
             
-            # Apply calibration offsets here (to be implemented)
+            # Apply calibration offsets
+            calibrated_packet = algorithms.apply_calibration(packet.copy())
 
             await db.execute(
                 """
@@ -106,31 +117,32 @@ async def db_writer(queue: asyncio.Queue):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    ts_utc, mac, packet['node_id'], packet['seq'], packet['t_ms'],
-                    packet['temp_c'], packet['rh_pct'], packet['pressure_hpa'],
-                    packet['lux'], packet['accel_g'], packet['sound_dbfs']
+                    ts_utc, mac, calibrated_packet['node_id'], calibrated_packet['seq'], calibrated_packet['t_ms'],
+                    calibrated_packet['temp_c'], calibrated_packet['rh_pct'], calibrated_packet['pressure_hpa'],
+                    calibrated_packet['lux'], calibrated_packet['accel_g'], calibrated_packet['sound_dbfs']
                 )
             )
             await db.commit()
             
-            # Update in-memory cache
-            packet['ts_utc'] = ts_utc
-            packet['mac'] = mac
-            last_values_cache[mac] = packet
+            # Update in-memory cache with calibrated data
+            calibrated_packet['ts_utc'] = ts_utc
+            calibrated_packet['mac'] = mac
+            last_values_cache[mac] = calibrated_packet
             
             # Put data onto IPC queue for other services
-            await ipc_queue.put(packet)
+            await ipc_queue.put({"type": "reading", "data": calibrated_packet})
             
             queue.task_done()
-            logger.debug(f"Wrote packet from Node {packet['node_id']} (Seq: {packet['seq']}) to DB.")
+            logger.debug(f"Wrote packet from Node {calibrated_packet['node_id']} (Seq: {calibrated_packet['seq']}) to DB.")
 
 # --- BLE Client Logic ---
-async def notification_handler(sender, data: bytearray, db_queue: asyncio.Queue, mac: str):
+def notification_handler(sender, data: bytearray, db_queue: asyncio.Queue, mac: str):
     """Handles incoming BLE notifications."""
     logger.debug(f"Received data from {mac}: {data.hex()}")
     packet = parse_packet(data)
     if packet:
-        await db_queue.put((packet, mac))
+        # Schedule the async operation as a task
+        asyncio.create_task(db_queue.put((packet, mac)))
 
 async def run_ble_client(device: bleak.BLEDevice, db_queue: asyncio.Queue):
     """Manages the connection and subscription for a single CORTEX node."""
@@ -209,11 +221,66 @@ async def ipc_publisher():
         ipc_queue.task_done()
         logger.debug(f"[IPC PUB] Sent data to {len(ipc_clients)} clients.")
 
+# --- Analytics Processor ---
+async def analytics_processor():
+    """Periodically runs analytics and publishes results."""
+    global cortex_personality
+    async with aiosqlite.connect(DB_PATH) as db:
+        cortex_personality = personality.Personality(db)
+        await cortex_personality.load_state()
+
+        while True:
+            await asyncio.sleep(5) # Run analytics every 5 seconds
+
+            if not last_values_cache:
+                logger.debug("No node data in cache for analytics.")
+                continue
+
+            nodes_data = list(last_values_cache.values())
+            
+            # 1. Spatial Awareness
+            fused_data = algorithms.fuse_spatial(nodes_data)
+            spatial_gradients = algorithms.spatial_gradient(nodes_data)
+
+            # 2. Occupancy Detection (Placeholder for BLE device count)
+            # For now, assume 0 BLE devices detected
+            ble_device_count = 0 
+            occupancy = algorithms.occupancy_state(nodes_data, ble_device_count)
+
+            # 3. Personality Update
+            cortex_personality.update(fused_data, occupancy["state"])
+            personality_state = cortex_personality.get_current_properties()
+
+            # 4. Prediction (Simplified for now, needs historical data)
+            # This would typically query the DB for recent history
+            prediction_result = predictor.forecast_linear([], 30) # Empty history for now
+
+            # Aggregate and send via IPC
+            analytics_results = {
+                "type": "analytics",
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "fused_data": fused_data,
+                "spatial_gradients": spatial_gradients,
+                "occupancy": occupancy,
+                "personality_state": personality_state,
+                "prediction": prediction_result
+            }
+            await ipc_queue.put(analytics_results)
+            logger.debug("Analytics processed and published.")
+
 
 # --- Main Application Logic ---
 async def main():
     """Main entry point for the CORTEX Hub."""
+    global calibration_data
     await init_db()
+    
+    # Load calibration data at startup
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT node_id, metric, offset_value FROM calibration")
+        calibration_rows = await cursor.fetchall()
+        algorithms.load_calibration_offsets([dict(row) for row in calibration_rows])
     
     db_queue = asyncio.Queue()
     asyncio.create_task(db_writer(db_queue))
@@ -223,30 +290,48 @@ async def main():
     asyncio.create_task(ipc_publisher())
     logger.info(f"IPC server started on {IPC_HOST}:{IPC_PORT}")
 
+    # Start the analytics processor
+    asyncio.create_task(analytics_processor())
 
+
+    # The main BLE scanner loop
     while True:
         logger.info("Starting BLE scan for CORTEX nodes...")
+        processed_in_this_scan = set()
+
         try:
-            devices = await bleak.BleakScanner.discover(
-                service_uuids=[CORTEX_SERVICE_UUID], timeout=10.0
-            )
+            # Define the core scanning logic in a separate async function
+            async def scan_logic():
+                async with bleak.BleakScanner() as scanner:
+                    async for device, advertisement_data in scanner.advertisement_data():
+                        # Check if it's a CORTEX node
+                        if CORTEX_SERVICE_UUID not in advertisement_data.service_uuids:
+                            continue
+                        
+                        # Check if we've already processed this device in this scan cycle
+                        if device.address in processed_in_this_scan:
+                            continue
+
+                        rssi = advertisement_data.rssi
+                        if rssi < MIN_RSSI:
+                            logger.debug(f"Ignoring {device.name} due to weak signal ({rssi} < {MIN_RSSI})")
+                            continue
+
+                        # Check if we already have an active connection task for this device
+                        if device.address not in [t.get_name() for t in asyncio.all_tasks()]:
+                            logger.info(f"Found CORTEX node: {device.name} ({rssi} dBm)")
+                            task = asyncio.create_task(run_ble_client(device, db_queue))
+                            task.set_name(device.address)
+                            processed_in_this_scan.add(device.address)
+
+            # Run the scan logic with a 10-second timeout
+            await asyncio.wait_for(scan_logic(), timeout=10.0)
+
+        except asyncio.TimeoutError:
+            logger.info(f"Scan finished. Found {len(processed_in_this_scan)} new nodes in this cycle.")
         except bleak.exc.BleakError as e:
             logger.error(f"BLE scan failed. Is the adapter powered on? Error: {e}")
-            await asyncio.sleep(10)
-            continue
 
-        for device in devices:
-            if device.rssi < MIN_RSSI:
-                logger.debug(f"Ignoring {device.name} due to weak signal ({device.rssi} < {MIN_RSSI})")
-                continue
-            
-            # Check if we are already trying to connect to this device
-            # A simple way is to check active tasks. A more robust way would be a connection manager.
-            if device.address not in [t.get_name() for t in asyncio.all_tasks()]:
-                task = asyncio.create_task(run_ble_client(device, db_queue))
-                task.set_name(device.address) # Name the task by the device address for tracking
-
-        logger.info(f"Scan finished. Found {len(devices)} nodes. Waiting before next scan...")
         await asyncio.sleep(15) # Wait before scanning again
 
 
